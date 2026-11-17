@@ -92,10 +92,17 @@ testcase_no_require_signatures_helper() {
 
     # The helper's "check" command runs the same bpf_restrict_fsaccess_check_prerequisites()
     # checks that PID1 uses. It must fail because require_signatures is not enabled.
-    local out
-    if out=$("$HELPER" check 2>&1); then
+    local out rc=0
+    out=$("$HELPER" check 2>&1) || rc=$?
+    if [[ "$rc" -eq 0 ]]; then
         echo "ERROR: helper check succeeded but require_signatures is not enabled"
         return 1
+    fi
+    # The helper exits with 77 when it was built without RestrictFileSystemAccess= support,
+    # i.e. +BPF_FRAMEWORK but a vmlinux.h without the bdev_setintegrity LSM types.
+    if [[ "$rc" -eq 77 ]]; then
+        echo "RestrictFileSystemAccess= support not compiled in, skipping: $out"
+        return 0
     fi
     # ... and for that reason, not some other broken gate (meson.build sets
     # proc_mem.force_override=never for this subtest to keep the others green).
